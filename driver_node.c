@@ -5,16 +5,29 @@
 #include<linux/fs.h>
 #include <linux/device.h>
 #include<linux/cdev.h>
- 
+#include<linux/slab.h>                 //kmalloc()
+#include<linux/uaccess.h>              //copy_to/from_user() 
+
+#define mem_size        1024           //Memory Size
+
 dev_t dev = 0; 
 static struct class *dev_class;
 static struct cdev simple_cdev;
+uint8_t *kernel_buffer;
 
 /*
 ** This function will be called when we open the Device file
 */
 static int sim_open(struct inode *inode, struct file *file)
 {
+
+        /*Creating Physical memory*/
+
+        if((kernel_buffer = kmalloc(mem_size , GFP_KERNEL)) == 0)
+	{
+            pr_info("Cannot allocate memory in kernel\n");
+            return -1;
+        }
         pr_info("Driver Open Function Called\n");
         return 0;
 }
@@ -23,6 +36,7 @@ static int sim_open(struct inode *inode, struct file *file)
 */
 static int sim_release(struct inode *inode, struct file *file)
 {
+	kfree(kernel_buffer);
         pr_info("Driver Release Function Called\n");
         return 0;
 }
@@ -31,14 +45,25 @@ static int sim_release(struct inode *inode, struct file *file)
 */
 static ssize_t sim_read(struct file *filp, char __user *buf, size_t len, loff_t *off)
 {
+        //Copy the data from the kernel space to the user-space
+
+        if( copy_to_user(buf, kernel_buffer, mem_size) )
+        {
+                pr_err("Data Read : Err!\n");
+	}
         pr_info("Driver Read Function Called\n");
-        return len;
+        return mem_size;
 }
 /*
 ** This function will be called when we write the Device file
 */
 static ssize_t sim_write(struct file *filp, const char __user *buf, size_t len, loff_t *off)
 {
+	if( copy_from_user(kernel_buffer, buf, len))
+        {
+                pr_err("Data Write : Err!\n");
+        }
+
         pr_info("Driver Write Function Called\n");
         return len;
 }
@@ -57,7 +82,7 @@ struct file_operations simple_fops=
 ** Module Init function
 */
 
-static int __init cdev_node_init(void)
+static int __init driver_node_init(void)
 {
 
 	/*Allocating Major number*/
@@ -110,7 +135,7 @@ r_class:
 ** Module Exit function
 */
 
-static void __exit cdev_node_exit(void)
+static void __exit driver_node_exit(void)
 {
         device_destroy(dev_class,dev);
         class_destroy(dev_class);
@@ -119,10 +144,10 @@ static void __exit cdev_node_exit(void)
 	printk(KERN_INFO "Kernel Module Removed Successfully\n");
 }
  
-module_init(cdev_node_init);
-module_exit(cdev_node_exit);
+module_init(driver_node_init);
+module_exit(driver_node_exit);
  
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sharon Jerome");
-MODULE_DESCRIPTION("A simple cdev_node driver");
+MODULE_DESCRIPTION("A simple driver_node driver");
 MODULE_VERSION("1.0");

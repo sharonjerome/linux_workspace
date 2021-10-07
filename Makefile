@@ -6,6 +6,8 @@ obj-m := dev_node.o
 
 obj-m := cdev_node.o
 
+obj-m := driver_node.o
+
  
 KDIR = /lib/modules/$(shell uname -r)/build
  
